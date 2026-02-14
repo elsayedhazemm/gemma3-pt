@@ -30,7 +30,7 @@ class CPTConfig:
 
     # Training hyperparameters (tuned for 8x H100 80GB)
     num_train_epochs: int = 8
-    per_device_train_batch_size: int = 8
+    per_device_train_batch_size: int = 1
     gradient_accumulation_steps: int = 1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 524K tok/step
     learning_rate: float = 2e-5
     lr_scheduler_type: str = "cosine"
@@ -47,9 +47,8 @@ class CPTConfig:
     # Logging and saving
     logging_steps: int = 10
     save_strategy: str = "steps"
-    save_steps: int = 50
-    save_total_limit: int = 5
-    report_to: str = "tensorboard"
+    save_steps: int = 500
+    report_to: str = "wandb"
 
     # Eval (optional — split a small portion for perplexity tracking)
     eval_ratio: float = 0.02  # 2% of data for eval
@@ -106,7 +105,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         cfg.model_name,
         torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
-        attn_implementation="flash_attention_2",
+        attn_implementation="flash_attention_2"
     )
 
     if cfg.gradient_checkpointing:
