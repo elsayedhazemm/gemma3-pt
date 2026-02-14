@@ -1,2 +1,5 @@
 /venv
+/.venv
 /dataset
+/wandb
+/checkpoints
