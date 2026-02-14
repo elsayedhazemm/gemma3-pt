@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.10+
-- PyTorch 2.x with CUDA 12.4+
+- PyTorch 2.x with CUDA 12.6
 - 8x NVIDIA H100 80GB (or adjust batch sizes for your setup)
 - The dataset must be built first: `python build_dataset.py`
 
@@ -14,7 +14,7 @@ Install with [uv](https://docs.astral.sh/uv/):
 # Create venv and install PyTorch with CUDA 12.4
 uv venv --python 3.11
 source .venv/bin/activate
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
 # Core training dependencies
 uv pip install transformers datasets accelerate tensorboard
@@ -30,7 +30,7 @@ Or install everything at once from the requirements file:
 ```bash
 uv venv --python 3.11
 source .venv/bin/activate
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 uv pip install -r requirements.txt --no-build-isolation
 ```
 
