@@ -143,7 +143,7 @@ def main():
         dataloader_num_workers=8,
         dataloader_pin_memory=True,
         remove_unused_columns=False,
-        ddp_find_unused_parameters=False,
+        ddp_find_unused_parameters=True,
         torch_compile=cfg.torch_compile,
     )
 
