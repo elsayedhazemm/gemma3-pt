@@ -76,6 +76,7 @@ class CausalLMDataset(torch.utils.data.Dataset):
         return {
             "input_ids": input_ids,
             "attention_mask": torch.tensor(item["attention_mask"], dtype=torch.long),
+            "token_type_ids": torch.zeros_like(input_ids),
             "labels": input_ids.clone(),
         }
 
