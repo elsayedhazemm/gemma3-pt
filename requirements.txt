@@ -1,0 +1,5 @@
+transformers>=4.46.0
+datasets>=3.0.0
+accelerate>=1.0.0
+tensorboard
+flash-attn>=2.6.0

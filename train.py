@@ -28,10 +28,10 @@ class CPTConfig:
     dataset_path: str = str(Path(__file__).parent / "dataset")
     output_dir: str = str(Path(__file__).parent / "checkpoints")
 
-    # Training hyperparameters
-    num_train_epochs: int = 3
-    per_device_train_batch_size: int = 2
-    gradient_accumulation_steps: int = 8  # effective batch = 2 * 8 * num_gpus
+    # Training hyperparameters (tuned for 8x H100 80GB)
+    num_train_epochs: int = 8
+    per_device_train_batch_size: int = 8
+    gradient_accumulation_steps: int = 1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 524K tok/step
     learning_rate: float = 2e-5
     lr_scheduler_type: str = "cosine"
     warmup_ratio: float = 0.05
@@ -42,19 +42,19 @@ class CPTConfig:
     bf16: bool = True
     tf32: bool = True
     gradient_checkpointing: bool = True
-    torch_compile: bool = False  # set True if PyTorch 2.x and stable
+    torch_compile: bool = True  # H100 + PyTorch 2.x = ~15-20% speedup
 
     # Logging and saving
     logging_steps: int = 10
     save_strategy: str = "steps"
-    save_steps: int = 200
-    save_total_limit: int = 3
+    save_steps: int = 50
+    save_total_limit: int = 5
     report_to: str = "tensorboard"
 
     # Eval (optional — split a small portion for perplexity tracking)
     eval_ratio: float = 0.02  # 2% of data for eval
     eval_strategy: str = "steps"
-    eval_steps: int = 200
+    eval_steps: int = 50
 
     seed: int = 42
 
@@ -139,7 +139,7 @@ def main():
         eval_steps=cfg.eval_steps if eval_ds else None,
         report_to=cfg.report_to,
         seed=cfg.seed,
-        dataloader_num_workers=4,
+        dataloader_num_workers=8,
         dataloader_pin_memory=True,
         remove_unused_columns=False,
         ddp_find_unused_parameters=False,
