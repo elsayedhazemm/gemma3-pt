@@ -42,7 +42,7 @@ class CPTConfig:
     bf16: bool = True
     tf32: bool = False
     gradient_checkpointing: bool = True
-    torch_compile: bool = True  # H100 + PyTorch 2.x = ~15-20% speedup
+    torch_compile: bool = False  # broken with 8K seq len (Triton XBLOCK limit)
 
     # Logging and saving
     logging_steps: int = 10
