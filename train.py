@@ -45,7 +45,7 @@ class CPTConfig:
     bf16: bool = True
     tf32: bool = False
     gradient_checkpointing: bool = True
-    torch_compile: bool = False  # broken with 8K seq len (Triton XBLOCK limit)
+    torch_compile: bool = True  # broken with 8K seq len (Triton XBLOCK limit)
 
     # Logging and saving
     logging_steps: int = 10
@@ -53,7 +53,7 @@ class CPTConfig:
     report_to: str = "wandb"
 
     # Eval (optional — split a small portion for perplexity tracking)
-    eval_ratio: float = 0.02  # 2% of data for eval
+    eval_ratio: float = 0  # 2% of data for eval
     eval_strategy: str = "steps"
     eval_steps: int = 50
 
