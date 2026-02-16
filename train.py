@@ -22,6 +22,7 @@ from transformers import (
 
 # ── Config ──────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class CPTConfig:
     model_name: str = "google/gemma-3-4b-pt"
@@ -31,8 +32,10 @@ class CPTConfig:
     # Training hyperparameters (tuned for 8x H100 80GB)
     num_train_epochs: int = 8
     per_device_train_batch_size: int = 1
-    gradient_accumulation_steps: int = 1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 524K tok/step
-    learning_rate: float = 2e-5
+    gradient_accumulation_steps: int = (
+        1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 524K tok/step
+    )
+    learning_rate: float = 5e-4
     lr_scheduler_type: str = "cosine"
     warmup_ratio: float = 0.05
     weight_decay: float = 0.01
@@ -46,8 +49,7 @@ class CPTConfig:
 
     # Logging and saving
     logging_steps: int = 10
-    save_strategy: str = "steps"
-    save_steps: int = 500
+    save_strategy: str = "epoch"
     report_to: str = "wandb"
 
     # Eval (optional — split a small portion for perplexity tracking)
@@ -59,6 +61,7 @@ class CPTConfig:
 
 
 # ── Dataset ─────────────────────────────────────────────────────────────────────
+
 
 class CausalLMDataset(torch.utils.data.Dataset):
     """Wraps HF Dataset to return input_ids and labels (same as input_ids for CLM)."""
@@ -74,13 +77,14 @@ class CausalLMDataset(torch.utils.data.Dataset):
         input_ids = torch.tensor(item["input_ids"], dtype=torch.long)
         return {
             "input_ids": input_ids,
-            "attention_mask": torch.tensor(item["attention_mask"], dtype=torch.long),
+            "attention_mask": torch.ones_like(input_ids),
             "token_type_ids": torch.zeros_like(input_ids),
             "labels": input_ids.clone(),
         }
 
 
 # ── Main ────────────────────────────────────────────────────────────────────────
+
 
 def main():
     cfg = CPTConfig()
@@ -105,7 +109,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         cfg.model_name,
         torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
-        attn_implementation="flash_attention_2"
+        attn_implementation="eager",
     )
 
     if cfg.gradient_checkpointing:
@@ -116,7 +120,9 @@ def main():
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total params: {total_params / 1e9:.2f}B, Trainable: {trainable_params / 1e9:.2f}B")
+    print(
+        f"Total params: {total_params / 1e9:.2f}B, Trainable: {trainable_params / 1e9:.2f}B"
+    )
 
     # Training arguments
     training_args = TrainingArguments(
@@ -133,8 +139,6 @@ def main():
         tf32=cfg.tf32,
         logging_steps=cfg.logging_steps,
         save_strategy=cfg.save_strategy,
-        save_steps=cfg.save_steps,
-        save_total_limit=cfg.save_total_limit,
         eval_strategy=cfg.eval_strategy if eval_ds else "no",
         eval_steps=cfg.eval_steps if eval_ds else None,
         report_to=cfg.report_to,

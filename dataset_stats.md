@@ -2,8 +2,8 @@
 
 ## Source
 - **Model**: `google/gemma-3-4b-pt`
-- **Source directory**: `../clean/`
-- **Sequence length**: 8,192
+- **Source directory**: `./clean/`
+- **Sequence length**: 4,096
 - **Seed**: 42
 
 ## Articles
@@ -31,6 +31,6 @@
 | >32K | 0 | 0.0% |
 
 ## Packed Sequences
-- **Total sequences**: 4,312
-- **Sequence length**: 8,192 tokens
+- **Total sequences**: 8,624
+- **Sequence length**: 4,096 tokens
 - **Total training tokens**: 35,323,904

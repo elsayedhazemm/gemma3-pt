@@ -13,26 +13,26 @@ Pipeline:
   8. Write dataset_stats.md
 """
 
+import gc
 import json
-import os
 import re
 import random
 import statistics
+import sys
 from pathlib import Path
 
+import pyarrow as pa
 from datasets import Dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer
-
 # ── Config ──────────────────────────────────────────────────────────────────────
 
-CLEAN_DIR = Path(__file__).parent / ".." / "clean"
+CLEAN_DIR = Path(__file__).parent / "clean"
 OUTPUT_DIR = Path(__file__).parent / "dataset"
 STATS_FILE = Path(__file__).parent / "dataset_stats.md"
 MODEL_NAME = "google/gemma-3-4b-pt"
-SEQ_LENGTH = 8192
+SEQ_LENGTH = 4096
 SEED = 42
-
 
 # ── Step 1: Load articles ──────────────────────────────────────────────────────
 
@@ -125,34 +125,64 @@ def tokenize_and_pack(
     documents: list[str],
     tokenizer,
     seq_length: int,
-) -> list[list[int]]:
+    output_path: Path,
+) -> tuple[int, list[int]]:
+    """Tokenize, pack into fixed-length sequences, and write directly to an
+    Arrow IPC file on disk.  Only a small buffer is ever held in memory."""
     eos_id = tokenizer.eos_token_id
+    schema = pa.schema([("input_ids", pa.list_(pa.int32()))])
 
-    # Tokenize all documents
-    print("Tokenizing documents...")
-    all_token_ids = []
-    doc_token_lengths = []
-    for doc in tqdm(documents, desc="Tokenizing"):
+    print("Tokenizing, packing, and writing to disk (streaming)...")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    writer = pa.ipc.new_file(str(output_path), schema)
+
+    buffer: list[int] = []
+    pending: list[list[int]] = []
+    doc_token_lengths: list[int] = []
+    total_tokens = 0
+    num_sequences = 0
+    WRITE_BATCH = 256
+
+    for doc in tqdm(documents, desc="Tokenizing & packing"):
         ids = tokenizer.encode(doc, add_special_tokens=False)
         doc_token_lengths.append(len(ids))
-        all_token_ids.extend(ids)
-        all_token_ids.append(eos_id)
+        total_tokens += len(ids) + 1  # +1 for EOS
 
-    total_tokens = len(all_token_ids)
+        buffer.extend(ids)
+        buffer.append(eos_id)
+
+        # Drain buffer into pending sequences
+        while len(buffer) >= seq_length:
+            pending.append(buffer[:seq_length])
+            buffer = buffer[seq_length:]
+            num_sequences += 1
+
+            # Flush pending batch to disk
+            if len(pending) >= WRITE_BATCH:
+                batch = pa.record_batch(
+                    [pa.array(pending, type=pa.list_(pa.int32()))],
+                    schema=schema,
+                )
+                writer.write_batch(batch)
+                pending.clear()
+
+    # Flush remaining sequences
+    if pending:
+        batch = pa.record_batch(
+            [pa.array(pending, type=pa.list_(pa.int32()))],
+            schema=schema,
+        )
+        writer.write_batch(batch)
+        pending.clear()
+
+    writer.close()
+
+    discarded = len(buffer)
     print(f"Total tokens (with EOS separators): {total_tokens:,}")
-
-    # Pack into fixed-length sequences
-    num_sequences = total_tokens // seq_length
-    packed = []
-    for i in range(num_sequences):
-        start = i * seq_length
-        packed.append(all_token_ids[start : start + seq_length])
-
-    discarded = total_tokens - (num_sequences * seq_length)
     print(f"Packed into {num_sequences:,} sequences of {seq_length} tokens")
     print(f"Discarded {discarded:,} trailing tokens")
 
-    return packed, doc_token_lengths
+    return num_sequences, doc_token_lengths
 
 
 # ── Step 7: Write stats ────────────────────────────────────────────────────────
@@ -192,7 +222,7 @@ def write_stats(
         "",
         "## Source",
         f"- **Model**: `{MODEL_NAME}`",
-        f"- **Source directory**: `../clean/`",
+        "- **Source directory**: `./clean/`",
         f"- **Sequence length**: {seq_length:,}",
         f"- **Seed**: {SEED}",
         "",
@@ -252,21 +282,29 @@ def main():
     random.shuffle(documents)
     print(f"Shuffled {len(documents)} documents (seed={SEED})")
 
-    # Tokenize + pack
+    # Tokenize + pack → writes Arrow file directly to disk (no big Python list)
     print(f"Loading tokenizer: {MODEL_NAME}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    packed, doc_token_lengths = tokenize_and_pack(documents, tokenizer, SEQ_LENGTH)
-
-    # Build HF Dataset
-    print("Building HuggingFace Dataset...")
-    ds = Dataset.from_dict({
-        "input_ids": packed,
-        "attention_mask": [[1] * SEQ_LENGTH for _ in packed],
-    })
-
-    # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    arrow_path = OUTPUT_DIR / "_packed.arrow"
+    num_sequences, doc_token_lengths = tokenize_and_pack(
+        documents, tokenizer, SEQ_LENGTH, arrow_path,
+    )
+
+    del documents
+    gc.collect()
+
+    # Load the Arrow file memory-mapped (barely uses RAM) and save as HF Dataset
+    print("Converting Arrow file to HuggingFace Dataset...")
+    source = pa.memory_map(str(arrow_path), "r")
+    table = pa.ipc.open_file(source).read_all()
+    ds = Dataset(table)
     ds.save_to_disk(str(OUTPUT_DIR.resolve()))
+    del ds, table, source
+    gc.collect()
+
+    # Clean up temp Arrow file
+    arrow_path.unlink(missing_ok=True)
     print(f"Dataset saved to {OUTPUT_DIR.resolve()}")
 
     # Stats
@@ -274,32 +312,68 @@ def main():
         total_articles=total_raw,
         after_dedup=len(articles),
         doc_token_lengths=doc_token_lengths,
-        num_sequences=len(packed),
+        num_sequences=num_sequences,
         seq_length=SEQ_LENGTH,
         stats_path=STATS_FILE.resolve(),
     )
 
-    # Sanity check: decode a few random sequences
+    # ── Verification ──────────────────────────────────────────────────────────
     print("\n" + "=" * 60)
-    print("SANITY CHECK: Decoding 3 random sequences")
+    print("DATASET INTEGRITY CHECK")
     print("=" * 60)
+    reloaded = Dataset.load_from_disk(str(OUTPUT_DIR.resolve()))
+    vocab_size = tokenizer.vocab_size
+    errors = []
+
+    # 1. Shape
+    print(f"Shape: {reloaded.shape}")
+    print(f"Columns: {reloaded.column_names}")
+    if reloaded.num_rows != num_sequences:
+        errors.append(f"Row count mismatch: expected {num_sequences}, got {reloaded.num_rows}")
+    if "input_ids" not in reloaded.column_names:
+        errors.append("Missing 'input_ids' column")
+
+    # 2. Sequence lengths
+    print("Checking all sequence lengths...")
+    bad_lengths = 0
+    for i in range(reloaded.num_rows):
+        if len(reloaded[i]["input_ids"]) != SEQ_LENGTH:
+            bad_lengths += 1
+    if bad_lengths:
+        errors.append(f"{bad_lengths} sequences have wrong length (expected {SEQ_LENGTH})")
+    else:
+        print(f"  All {reloaded.num_rows} sequences have length {SEQ_LENGTH}")
+
+    # 3. Token ID range
+    print("Checking token ID ranges...")
+    sample_indices = random.sample(range(reloaded.num_rows), min(200, reloaded.num_rows))
+    for idx in sample_indices:
+        ids = reloaded[idx]["input_ids"]
+        mn, mx = min(ids), max(ids)
+        if mn < 0 or mx >= vocab_size:
+            errors.append(f"Sequence {idx}: token IDs out of range [{mn}, {mx}] (vocab_size={vocab_size})")
+    print(f"  Sampled {len(sample_indices)} sequences — all IDs in [0, {vocab_size})")
+
+    # 4. Decode sanity check
+    print("Decoding 3 random sequences...")
     random.seed(SEED)
-    check_indices = random.sample(range(len(packed)), min(3, len(packed)))
+    check_indices = random.sample(range(reloaded.num_rows), min(3, reloaded.num_rows))
     for idx in check_indices:
-        text = tokenizer.decode(packed[idx], skip_special_tokens=False)
+        text = tokenizer.decode(reloaded[idx]["input_ids"], skip_special_tokens=False)
         print(f"\n--- Sequence {idx} (first 500 chars) ---")
         print(text[:500])
         print("...")
 
-    # Verify reload
+    # Final verdict
     print("\n" + "=" * 60)
-    print("VERIFICATION: Reloading dataset")
+    if errors:
+        for e in errors:
+            print(f"ERROR: {e}")
+        print("DATASET VERIFICATION FAILED")
+        sys.exit(1)
+    else:
+        print("ALL CHECKS PASSED — dataset is ready for training")
     print("=" * 60)
-    reloaded = Dataset.load_from_disk(str(OUTPUT_DIR.resolve()))
-    print(f"Shape: {reloaded.shape}")
-    print(f"Columns: {reloaded.column_names}")
-    print(f"First row input_ids length: {len(reloaded[0]['input_ids'])}")
-    print("\nDone!")
 
 
 if __name__ == "__main__":

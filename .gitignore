@@ -3,3 +3,7 @@
 /dataset
 /wandb
 /checkpoints
+/clean
+/deepseek_responses
+/*.json
+generate_reasoning.py
