@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Continued PreTraining (CPT) script for Gemma 3 4B on packed medical text.
+Continued PreTraining (CPT) script for Qwen3-4B-Base on packed medical text.
 
-Loads the pre-tokenized dataset from ./dataset/ and trains with HF Trainer.
-See TRAINING_GUIDE.md for launch commands and hyperparameter guidance.
+Loads the pre-tokenized dataset from ./dataset_qwen/ and trains with HF Trainer.
 """
 
 import os
@@ -25,15 +24,15 @@ from transformers import (
 
 @dataclass
 class CPTConfig:
-    model_name: str = "google/gemma-3-4b-pt"
-    dataset_path: str = str(Path(__file__).parent / "dataset")
-    output_dir: str = str(Path(__file__).parent / "checkpoints")
+    model_name: str = "Qwen/Qwen3-4B-Base"
+    dataset_path: str = str(Path(__file__).parent / "dataset_qwen")
+    output_dir: str = str(Path(__file__).parent / "checkpoints_qwen")
 
     # Training hyperparameters (tuned for 8x H100 80GB)
     num_train_epochs: int = 8
     per_device_train_batch_size: int = 1
     gradient_accumulation_steps: int = (
-        1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 524K tok/step
+        1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 262K tok/step
     )
     learning_rate: float = 2e-5
     lr_scheduler_type: str = "cosine"
@@ -45,7 +44,7 @@ class CPTConfig:
     bf16: bool = True
     tf32: bool = False
     gradient_checkpointing: bool = True
-    torch_compile: bool = True  # broken with 8K seq len (Triton XBLOCK limit)
+    torch_compile: bool = True
 
     # Logging and saving
     logging_steps: int = 10
@@ -53,7 +52,7 @@ class CPTConfig:
     report_to: str = "wandb"
 
     # Eval (optional — split a small portion for perplexity tracking)
-    eval_ratio: float = 0  # 2% of data for eval
+    eval_ratio: float = 0
     eval_strategy: str = "steps"
     eval_steps: int = 50
 
@@ -78,7 +77,6 @@ class CausalLMDataset(torch.utils.data.Dataset):
         return {
             "input_ids": input_ids,
             "attention_mask": torch.ones_like(input_ids),
-            "token_type_ids": torch.zeros_like(input_ids),
             "labels": input_ids.clone(),
         }
 
@@ -109,7 +107,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         cfg.model_name,
         torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
-        attn_implementation="eager",
+        attn_implementation="flash_attention_2",
     )
 
     if cfg.gradient_checkpointing:
@@ -146,7 +144,6 @@ def main():
         dataloader_num_workers=8,
         dataloader_pin_memory=True,
         remove_unused_columns=False,
-        ddp_find_unused_parameters=True,
         torch_compile=cfg.torch_compile,
     )
 

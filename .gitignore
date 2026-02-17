@@ -5,5 +5,8 @@
 /checkpoints
 /clean
 /deepseek_responses
+/rewritten_responses
+/dataset_qwen
+rewrite_traces.py
 /*.json
 generate_reasoning.py
