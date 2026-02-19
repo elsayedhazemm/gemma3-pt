@@ -10,3 +10,6 @@
 rewrite_traces.py
 /*.json
 generate_reasoning.py
+/*.txt
+build_sft_reasoning_files.py
+generate_claude_reasoning.py
