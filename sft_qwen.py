@@ -33,7 +33,7 @@ def parse_args():
         help="Model name or path",
     )
     parser.add_argument(
-        "--dataset-path", type=str, default=None,
+        "--dataset-path", type=str, default="sft_messages_reasoning",
         help="Path to HF Dataset with 'messages' column (default: auto)",
     )
     parser.add_argument(
@@ -44,7 +44,7 @@ def parse_args():
         "--output-dir", type=str, default=None,
         help="Output directory for checkpoints",
     )
-    parser.add_argument("--max-length", type=int, default=4096)
+    parser.add_argument("--max-length", type=int, default=8192)
     parser.add_argument("--num-epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum", type=int, default=1)
@@ -129,7 +129,7 @@ def main():
         seed=args.seed,
         dataloader_num_workers=64,
         dataloader_pin_memory=True,
-        torch_compile=True,
+        torch_compile=False,
     )
 
     # Create trainer

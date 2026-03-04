@@ -5,7 +5,12 @@
 /checkpoints
 /clean
 /deepseek_responses
-/rewritten_responses
+/rewritten_responses_*
+/deepseek_responses_multi
+/deepseek_responses_10x
+/batch_state
+/sft_messages*
+/dataset_qwen_reasoning
 /dataset_qwen
 rewrite_traces.py
 /*.json
