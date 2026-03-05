@@ -108,7 +108,8 @@ def main():
         weight_decay=0.01,
         max_grad_norm=1.0,
         bf16=True,
-        gradient_checkpointing=False,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=10,
         save_strategy="epoch",
         eval_strategy="steps" if eval_ds else "no",
@@ -118,14 +119,7 @@ def main():
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
         torch_compile=False,
-        fsdp="full_shard offload",
-        fsdp_config={
-            "transformer_layer_cls_to_wrap": "Qwen3_5DecoderLayer",
-            "backward_prefetch": "backward_pre",
-            "forward_prefetch": True,
-            "use_orig_params": True,
-            "activation_checkpointing": True,
-        },
+        deepspeed=str(SCRIPT_DIR / "ds_zero3_offload.json"),
     )
 
     # Create trainer
