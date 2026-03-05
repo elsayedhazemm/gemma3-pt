@@ -28,7 +28,7 @@ from transformers import (
 @dataclass
 class CPTConfig:
     model_name: str = "Qwen/Qwen3-14B-Base"
-    dataset_path: str = str(Path(__file__).parent / "dataset_qwen")
+    dataset_path: str = str(Path(__file__).parent / "dataset_qwen_combined")
     output_dir: str = str(Path(__file__).parent / "checkpoints_qwen")
 
     # Training hyperparameters (tuned for 8x H100 80GB)
@@ -110,13 +110,10 @@ def main():
         eval_ds = None
         print(f"Train: {len(train_ds)}, Eval: None")
 
-    # Apply Liger kernels (fused RMSNorm, SwiGLU, CrossEntropy, RoPE)
+    # Load model with Liger kernels (fused RMSNorm, SwiGLU, CrossEntropy, RoPE)
     from liger_kernel.transformers import AutoLigerKernelForCausalLM
-    AutoLigerKernelForCausalLM.apply_liger_kernel_to_instance(model_name=cfg.model_name)
-
-    # Load model
     print(f"Loading model: {cfg.model_name}")
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoLigerKernelForCausalLM.from_pretrained(
         cfg.model_name,
         torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
         attn_implementation="flash_attention_2",
