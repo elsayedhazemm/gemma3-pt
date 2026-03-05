@@ -119,8 +119,9 @@ def main():
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
         torch_compile=False,
-        fsdp="full_shard auto_wrap",
+        fsdp="full_shard",
         fsdp_config={
+            "transformer_layer_cls_to_wrap": "Qwen3_5DecoderLayer",
             "backward_prefetch": "backward_pre",
             "forward_prefetch": True,
             "use_orig_params": True,
