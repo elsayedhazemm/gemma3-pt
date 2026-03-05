@@ -110,21 +110,18 @@ def main():
         eval_ds = None
         print(f"Train: {len(train_ds)}, Eval: None")
 
-    # Load model with Liger kernels (fused RMSNorm, SwiGLU, CrossEntropy, RoPE)
+    # Apply Liger kernels before model loading
     from liger_kernel.transformers import AutoLigerKernelForCausalLM
-    print(f"Loading model: {cfg.model_name}")
-    model = AutoLigerKernelForCausalLM.from_pretrained(
-        cfg.model_name,
-        torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
-        attn_implementation="flash_attention_2",
-    )
 
-    # Count parameters
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(
-        f"Total params: {total_params / 1e9:.2f}B, Trainable: {trainable_params / 1e9:.2f}B"
-    )
+    # Load model — use ZeRO-3's init context to shard during loading
+    import deepspeed
+    print(f"Loading model: {cfg.model_name}")
+    with deepspeed.zero.Init():
+        model = AutoLigerKernelForCausalLM.from_pretrained(
+            cfg.model_name,
+            torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
+            attn_implementation="flash_attention_2",
+        )
 
     # Training arguments
     training_args = TrainingArguments(
