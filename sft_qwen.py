@@ -46,6 +46,7 @@ def parse_args():
     parser.add_argument("--packing", action="store_true", help="Enable sequence packing")
     parser.add_argument("--eval-ratio", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--local_rank", type=int, default=-1)
     return parser.parse_args()
 
 
