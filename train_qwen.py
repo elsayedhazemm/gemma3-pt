@@ -110,6 +110,10 @@ def main():
         eval_ds = None
         print(f"Train: {len(train_ds)}, Eval: None")
 
+    # Apply Liger kernels (fused RMSNorm, SwiGLU, CrossEntropy, RoPE)
+    from liger_kernel.transformers import AutoLigerKernelForCausalLM
+    AutoLigerKernelForCausalLM.apply_liger_kernel_to_instance(model_name=cfg.model_name)
+
     # Load model
     print(f"Loading model: {cfg.model_name}")
     model = AutoModelForCausalLM.from_pretrained(
