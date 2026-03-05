@@ -97,6 +97,7 @@ def main():
 
     # SFT config
     sft_config = SFTConfig(
+        use_liger_kernel=True,
         output_dir=output_dir,
         max_length=args.max_length,
         packing=args.packing,
