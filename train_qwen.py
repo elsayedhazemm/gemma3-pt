@@ -5,11 +5,11 @@ Continued PreTraining (CPT) script for Qwen3-14B-Base on packed medical text.
 Loads the pre-tokenized dataset from ./dataset_qwen/ and trains with HF Trainer + DeepSpeed ZeRO-3.
 
 Launch:
-  torchrun --nproc_per_node=8 train_qwen.py
+  deepspeed --num_gpus=8 train_qwen.py
 """
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -48,7 +48,6 @@ class CPTConfig:
     tf32: bool = False
     gradient_checkpointing: bool = True
     torch_compile: bool = False
-    deepspeed: str = str(Path(__file__).parent / "ds_zero3.json")
 
     # Logging and saving
     logging_steps: int = 10
@@ -89,6 +88,11 @@ class CausalLMDataset(torch.utils.data.Dataset):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local_rank", type=int, default=-1)
+    parser.parse_known_args()
+
     cfg = CPTConfig()
 
     print(f"Loading dataset from {cfg.dataset_path}")
@@ -113,11 +117,6 @@ def main():
         torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
         attn_implementation="flash_attention_2",
     )
-
-    if cfg.gradient_checkpointing:
-        model.gradient_checkpointing_enable(
-            gradient_checkpointing_kwargs={"use_reentrant": False}
-        )
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -149,7 +148,7 @@ def main():
         dataloader_pin_memory=True,
         remove_unused_columns=False,
         torch_compile=cfg.torch_compile,
-        deepspeed=cfg.deepspeed,
+        deepspeed=str(Path(__file__).parent / "ds_zero3.json"),
     )
 
     trainer = Trainer(
