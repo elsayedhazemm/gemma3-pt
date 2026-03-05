@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SFT (Supervised Fine-Tuning) script for Qwen3.5-27B using TRL SFTTrainer + DeepSpeed ZeRO-3.
+SFT (Supervised Fine-Tuning) script for Qwen3.5-27B using TRL SFTTrainer + FSDP.
 
 Expects a HuggingFace Dataset with a "messages" column (built by convert_sft_to_messages.py).
 The tokenizer's chat template is applied automatically by SFTTrainer.
@@ -119,7 +119,12 @@ def main():
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
         torch_compile=False,
-        deepspeed=str(SCRIPT_DIR / "ds_zero3.json"),
+        fsdp="full_shard auto_wrap",
+        fsdp_config={
+            "backward_prefetch": "backward_pre",
+            "forward_prefetch": True,
+            "use_orig_params": True,
+        },
     )
 
     # Create trainer
