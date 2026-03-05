@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build a CPT (Continued PreTraining) dataset for Qwen3-4B-Base from UpToDate medical articles.
+Build a CPT (Continued PreTraining) dataset for Qwen3-14B-Base from UpToDate medical articles.
 
 Pipeline:
   1. Load all JSON articles from ../clean/
@@ -30,7 +30,7 @@ from transformers import AutoTokenizer
 CLEAN_DIR = Path(__file__).parent / "clean"
 OUTPUT_DIR = Path(__file__).parent / "dataset_qwen"
 STATS_FILE = Path(__file__).parent / "dataset_stats_qwen.md"
-MODEL_NAME = "Qwen/Qwen3-4B-Base"
+MODEL_NAME = "Qwen/Qwen3-14B-Base"
 SEQ_LENGTH = 4096
 SEED = 42
 
@@ -218,7 +218,7 @@ def write_stats(
                 break
 
     lines = [
-        "# CPT Dataset Statistics (Qwen3-4B-Base)",
+        "# CPT Dataset Statistics (Qwen3-14B-Base)",
         "",
         "## Source",
         f"- **Model**: `{MODEL_NAME}`",

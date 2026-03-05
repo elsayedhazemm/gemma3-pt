@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-Continued PreTraining (CPT) script for Qwen3-4B-Base on packed medical text.
+Continued PreTraining (CPT) script for Qwen3-14B-Base on packed medical text.
 
-Loads the pre-tokenized dataset from ./dataset_qwen/ and trains with HF Trainer.
+Loads the pre-tokenized dataset from ./dataset_qwen/ and trains with HF Trainer + DeepSpeed ZeRO-3.
+
+Launch:
+  torchrun --nproc_per_node=8 train_qwen.py
 """
 
 import os
@@ -24,12 +27,12 @@ from transformers import (
 
 @dataclass
 class CPTConfig:
-    model_name: str = "Qwen/Qwen3-4B-Base"
+    model_name: str = "Qwen/Qwen3-14B-Base"
     dataset_path: str = str(Path(__file__).parent / "dataset_qwen")
     output_dir: str = str(Path(__file__).parent / "checkpoints_qwen")
 
     # Training hyperparameters (tuned for 8x H100 80GB)
-    num_train_epochs: int = 8
+    num_train_epochs: int = 3
     per_device_train_batch_size: int = 1
     gradient_accumulation_steps: int = (
         1  # effective batch = 8 * 1 * 8 GPUs = 64 seqs = 262K tok/step
@@ -44,7 +47,8 @@ class CPTConfig:
     bf16: bool = True
     tf32: bool = False
     gradient_checkpointing: bool = True
-    torch_compile: bool = True
+    torch_compile: bool = False
+    deepspeed: str = str(Path(__file__).parent / "ds_zero3.json")
 
     # Logging and saving
     logging_steps: int = 10
@@ -145,6 +149,7 @@ def main():
         dataloader_pin_memory=True,
         remove_unused_columns=False,
         torch_compile=cfg.torch_compile,
+        deepspeed=cfg.deepspeed,
     )
 
     trainer = Trainer(
