@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """
-SFT (Supervised Fine-Tuning) script for Qwen3-4B using TRL SFTTrainer.
+SFT (Supervised Fine-Tuning) script for Qwen3.5-27B using TRL SFTTrainer + DeepSpeed ZeRO-3.
 
 Expects a HuggingFace Dataset with a "messages" column (built by convert_sft_to_messages.py).
 The tokenizer's chat template is applied automatically by SFTTrainer.
 
-Launch with DDP:
+Launch:
   torchrun --nproc_per_node=8 sft_qwen.py
-  torchrun --nproc_per_node=8 sft_qwen.py --reasoning   # use reasoning dataset
-
-Single GPU:
-  python sft_qwen.py
+  torchrun --nproc_per_node=8 sft_qwen.py --dataset-path sft_messages_reasoning_runs_5-9
 """
 
 import argparse
@@ -27,18 +24,14 @@ SCRIPT_DIR = Path(__file__).parent
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="SFT Qwen3-4B")
+    parser = argparse.ArgumentParser(description="SFT Qwen3.5-27B")
     parser.add_argument(
-        "--model-name", type=str, default="base",
+        "--model-name", type=str, default="Qwen/Qwen3.5-27B",
         help="Model name or path",
     )
     parser.add_argument(
-        "--dataset-path", type=str, default="sft_messages_reasoning",
-        help="Path to HF Dataset with 'messages' column (default: auto)",
-    )
-    parser.add_argument(
-        "--reasoning", action="store_true",
-        help="Use the reasoning dataset (sft_messages_reasoning/)",
+        "--dataset-path", type=str, default=None,
+        help="Path to HF Dataset with 'messages' column",
     )
     parser.add_argument(
         "--output-dir", type=str, default=None,
@@ -62,16 +55,12 @@ def main():
     # Resolve dataset path
     if args.dataset_path:
         dataset_path = Path(args.dataset_path)
-    elif args.reasoning:
-        dataset_path = SCRIPT_DIR / "sft_messages_reasoning"
     else:
-        dataset_path = SCRIPT_DIR / "sft_messages"
+        dataset_path = SCRIPT_DIR / "sft_messages_reasoning"
 
     # Resolve output dir
     if args.output_dir:
         output_dir = args.output_dir
-    elif args.reasoning:
-        output_dir = str(SCRIPT_DIR / "checkpoints_sft_qwen_reasoning")
     else:
         output_dir = str(SCRIPT_DIR / "checkpoints_sft_qwen")
 
@@ -102,7 +91,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name,
         torch_dtype=torch.bfloat16,
-        attn_implementation="eager",
+        attn_implementation="flash_attention_2",
     )
 
     # SFT config
@@ -127,9 +116,10 @@ def main():
         eval_steps=50 if eval_ds else None,
         report_to="wandb",
         seed=args.seed,
-        dataloader_num_workers=64,
+        dataloader_num_workers=4,
         dataloader_pin_memory=True,
         torch_compile=False,
+        deepspeed=str(SCRIPT_DIR / "ds_zero3.json"),
     )
 
     # Create trainer
