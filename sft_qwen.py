@@ -97,7 +97,7 @@ def main():
 
     # SFT config
     sft_config = SFTConfig(
-        pad_free=True,
+        padding_free=True,
         use_liger_kernel=True,
         output_dir=output_dir,
         max_length=args.max_length,
