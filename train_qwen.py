@@ -9,6 +9,11 @@ Launch:
 """
 
 import os
+os.environ["WANDB_API_KEY"] = "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"
+os.environ["WANDB_PROJECT"] = "gemma3-ft-qa"
+os.environ["WANDB_ENTITY"] = "helsayed-avey"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -110,18 +115,18 @@ def main():
         eval_ds = None
         print(f"Train: {len(train_ds)}, Eval: None")
 
-    # Apply Liger kernels before model loading
-    from liger_kernel.transformers import AutoLigerKernelForCausalLM
+    # Apply Liger kernels (skip fused CE which OOMs with ZeRO-3 + large vocab)
+    from liger_kernel.transformers import apply_liger_kernel_to_qwen3
+    apply_liger_kernel_to_qwen3(fused_linear_cross_entropy=True)
 
-    # Load model — use ZeRO-3's init context to shard during loading
-    import deepspeed
+    # Load model
     print(f"Loading model: {cfg.model_name}")
-    with deepspeed.zero.Init():
-        model = AutoLigerKernelForCausalLM.from_pretrained(
-            cfg.model_name,
-            torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
-            attn_implementation="flash_attention_2",
-        )
+    model = AutoModelForCausalLM.from_pretrained(
+        cfg.model_name,
+        torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float32,
+        attn_implementation="flash_attention_2",
+        low_cpu_mem_usage=True,
+    )
 
     # Training arguments
     training_args = TrainingArguments(
@@ -146,7 +151,7 @@ def main():
         dataloader_pin_memory=True,
         remove_unused_columns=False,
         torch_compile=cfg.torch_compile,
-        deepspeed=str(Path(__file__).parent / "ds_zero3.json"),
+        deepspeed=str(Path(__file__).parent / "ds_zero3_optim_offload.json"),
     )
 
     trainer = Trainer(

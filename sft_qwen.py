@@ -26,19 +26,19 @@ SCRIPT_DIR = Path(__file__).parent
 def parse_args():
     parser = argparse.ArgumentParser(description="SFT Qwen3.5-27B")
     parser.add_argument(
-        "--model-name", type=str, default="Qwen/Qwen3.5-27B",
+        "--model-name", type=str, default="base",
         help="Model name or path",
     )
     parser.add_argument(
-        "--dataset-path", type=str, default=None,
+        "--dataset-path", type=str, default="sft_messages_reasoning",
         help="Path to HF Dataset with 'messages' column",
     )
     parser.add_argument(
         "--output-dir", type=str, default=None,
         help="Output directory for checkpoints",
     )
-    parser.add_argument("--max-length", type=int, default=8192)
-    parser.add_argument("--num-epochs", type=int, default=5)
+    parser.add_argument("--max-length", type=int, default=4096)
+    parser.add_argument("--num-epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum", type=int, default=1)
     parser.add_argument("--lr", type=float, default=2e-5)
@@ -97,6 +97,7 @@ def main():
 
     # SFT config
     sft_config = SFTConfig(
+        pad_free=True,
         use_liger_kernel=True,
         output_dir=output_dir,
         max_length=args.max_length,
@@ -121,7 +122,7 @@ def main():
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
         torch_compile=False,
-        deepspeed=str(SCRIPT_DIR / "ds_zero3_offload.json"),
+        deepspeed=str(SCRIPT_DIR / "ds_zero3.json"),
     )
 
     # Create trainer
