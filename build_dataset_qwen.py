@@ -31,7 +31,7 @@ CLEAN_DIR = Path(__file__).parent / "clean"
 OUTPUT_DIR = Path(__file__).parent / "dataset_qwen"
 STATS_FILE = Path(__file__).parent / "dataset_stats_qwen.md"
 MODEL_NAME = "Qwen/Qwen3-14B-Base"
-SEQ_LENGTH = 4096
+SEQ_LENGTH = 2048
 SEED = 42
 
 # ── Step 1: Load articles ──────────────────────────────────────────────────────

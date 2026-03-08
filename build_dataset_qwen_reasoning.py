@@ -28,8 +28,8 @@ from transformers import AutoTokenizer
 SRC_FILE = Path(__file__).parent / "sft-paired-with-reasoning.json"
 OUTPUT_DIR = Path(__file__).parent / "dataset_qwen_reasoning"
 STATS_FILE = Path(__file__).parent / "dataset_stats_qwen_reasoning.md"
-MODEL_NAME = "Qwen/Qwen3-4B-Base"
-SEQ_LENGTH = 4096
+MODEL_NAME = "Qwen/Qwen3-14B-Base"
+SEQ_LENGTH = 2048
 SEED = 42
 
 # ── Step 1: Load reasoning traces ────────────────────────────────────────────
